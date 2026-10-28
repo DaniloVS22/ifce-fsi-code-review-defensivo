@@ -1,5 +1,23 @@
 'use strict';
 
+process.loadEnvFile();
+
+const variaveisObrigatorias = [
+  'DB_HOST',
+  'DB_USER',
+  'DB_PASSWORD',
+  'PAYMENT_API_KEY',
+  'ANA_PASSWORD',
+  'BRUNO_PASSWORD',
+  'CARLA_PASSWORD'
+];
+
+for (const variavel of variaveisObrigatorias) {
+  if (!process.env[variavel]) {
+    throw new Error(`Variável de ambiente obrigatória ausente: ${variavel}`);
+  }
+}
+
 /**
  * Banco Exemplo - API interna de contas (v1.3 - sistema legado)
  *
@@ -18,11 +36,11 @@ app.use(express.json());
 
 const PORT = 3000;
 
-const DB_HOST = 'db.internal.bancoexemplo.local';
-const DB_USER = 'app_service';
-const DB_PASSWORD = 'Banco@2019!Prod';
+const DB_HOST = process.env.DB_HOST;
+const DB_USER = process.env.DB_USER;
+const DB_PASSWORD = process.env.DB_PASSWORD;
 
-const PAYMENT_API_KEY = 'sk_live_9f3a7c21d5e84b6a90c1';
+const PAYMENT_API_KEY = process.env.PAYMENT_API_KEY;
 
 const dbConfig = {
   host: DB_HOST,
@@ -51,9 +69,9 @@ function verifyPassword(password, stored) {
 }
 
 const users = [
-  { id: 1, name: 'Ana Souza',    email: 'ana@exemplo.com',    passwordHash: hashPassword('ana-lab-123') },
-  { id: 2, name: 'Bruno Lima',   email: 'bruno@exemplo.com',  passwordHash: hashPassword('bruno-lab-123') },
-  { id: 3, name: 'Carla Mendes', email: 'carla@exemplo.com',  passwordHash: hashPassword('carla-lab-123') },
+  { id: 1, name: 'Ana Souza', email: 'ana@exemplo.com', passwordHash: hashPassword(process.env.ANA_PASSWORD) },
+  { id: 2, name: 'Bruno Lima', email: 'bruno@exemplo.com', passwordHash: hashPassword(process.env.BRUNO_PASSWORD) },
+  { id: 3, name: 'Carla Mendes', email: 'carla@exemplo.com', passwordHash: hashPassword(process.env.CARLA_PASSWORD) },
 ];
 
 const accounts = [
@@ -104,6 +122,10 @@ app.get('/api/accounts/:id', authenticate, (req, res) => {
     return res.status(404).json({ error: 'Conta não encontrada' });
   }
 
+  if (account.ownerId !== req.user.id) {
+    return res.status(403).json({ error: 'Acesso negado' });
+  }
+
   res.json(account);
 });
 
@@ -121,10 +143,19 @@ app.post('/api/feedback', (req, res) => {
   res.status(201).json(entry);
 });
 
+function escapeHtml(text) {
+  return String(text)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
 app.get('/feedback', (req, res) => {
-  const items = feedbacks
-    .map((f) => `<li><strong>${f.author}</strong> <em>(${f.createdAt})</em>: ${f.message}</li>`)
-    .join('\n');
+  const items = feedbacks.map(f =>
+    `<li><strong>${escapeHtml(f.author)}</strong> <em>(${escapeHtml(f.createdAt)})</em>: ${escapeHtml(f.message)}</li>`
+  ).join('\n');
 
   res.send(`<!doctype html>
 <html lang="pt-BR">
